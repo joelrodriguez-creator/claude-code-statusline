@@ -42,8 +42,29 @@ if [ ${#MISSING[@]} -gt 0 ]; then
             sudo apt install -y "${MISSING[@]}"
         elif command -v brew >/dev/null 2>&1; then
             brew install "${MISSING[@]}"
+        elif command -v winget >/dev/null 2>&1; then
+            # Windows (Git Bash / MSYS2 / WSL with winget on PATH). winget ID
+            # for jq is `jqlang.jq`; curl ships with Git for Windows so will
+            # usually not be missing.
+            for pkg in "${MISSING[@]}"; do
+                case "$pkg" in
+                    jq)   winget install --silent --accept-source-agreements --accept-package-agreements --id=jqlang.jq -e ;;
+                    curl) winget install --silent --accept-source-agreements --accept-package-agreements --id=curl.curl -e ;;
+                    *)    echo "  winget: no known package ID for '$pkg' — install manually" ;;
+                esac
+            done
+        elif command -v scoop >/dev/null 2>&1; then
+            scoop install "${MISSING[@]}"
+        elif command -v choco >/dev/null 2>&1; then
+            choco install -y "${MISSING[@]}"
+        elif command -v pacman >/dev/null 2>&1; then
+            # MSYS2 / MINGW
+            pacman -S --noconfirm "${MISSING[@]}"
         else
-            echo "  Could not detect package manager (apt/brew). Please install manually: ${MISSING[*]}"
+            echo "  Could not detect package manager. Install manually: ${MISSING[*]}"
+            echo "    Linux:   sudo apt install ${MISSING[*]}"
+            echo "    macOS:   brew install ${MISSING[*]}"
+            echo "    Windows: winget install jqlang.jq   (or scoop install jq, or choco install jq)"
             exit 1
         fi
         echo "  Packages installed."
