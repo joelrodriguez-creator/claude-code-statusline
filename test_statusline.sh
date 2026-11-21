@@ -297,6 +297,61 @@ OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_perce
     USAGE_FILE=/dev/null)
 assert_contains "Ctx label" "Ctx" "$OUT"
 
+# Test 20 — Duration shown independently when cost is missing, null, or zero
+echo ""
+echo "-- Test 20: duration without cost --"
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_duration_ms":3720000}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "missing cost: duration shown" "│ ⏱ 1h2m" "$OUT"
+assert_not_contains "missing cost: no dollar" '$' "$OUT"
+
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_cost_usd":null,"total_duration_ms":120000}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "null cost: duration shown" "│ ⏱ 2m" "$OUT"
+assert_not_contains "null cost: no dollar" '$' "$OUT"
+
+for zero_cost in 0 0.0 0.00 -0 -0.0 0e0 0.0e-5 -0.0e+2 '"+0"' '"+0.0"' '"+0e0"' '"-0.0E-3"'; do
+    OUT=$(run_statusline "{\"model\":\"claude-sonnet-4-6\",\"context_window\":{\"used_percentage\":20},\"cost\":{\"total_cost_usd\":$zero_cost,\"total_duration_ms\":90000}}" \
+        USAGE_FILE=/dev/null)
+    assert_contains "zero cost ($zero_cost): duration shown" "│ ⏱ 1m" "$OUT"
+    assert_not_contains "zero cost ($zero_cost): no dollar" '$' "$OUT"
+done
+
+# Test 21 — Sub-second positive elapsed duration uses <1m
+echo ""
+echo "-- Test 21: sub-second positive duration --"
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_duration_ms":500}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "sub-second duration without cost" "│ ⏱ <1m" "$OUT"
+assert_not_contains "sub-second without cost: no dollar" '$' "$OUT"
+
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_duration_ms":1}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "1ms duration uses <1m" "│ ⏱ <1m" "$OUT"
+assert_not_contains "1ms without cost: no dollar" '$' "$OUT"
+
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_cost_usd":0.45,"total_duration_ms":500}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "sub-second duration with cost" '$0.45 ⏱ <1m' "$OUT"
+
+# Test 22 — Positive cost without elapsed time (missing or zero duration)
+echo ""
+echo "-- Test 22: cost without duration --"
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_cost_usd":1.234}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "missing duration: cost shown" '$1.23' "$OUT"
+assert_not_contains "missing duration: no timer" "⏱" "$OUT"
+
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_cost_usd":1.234,"total_duration_ms":0}}' \
+    USAGE_FILE=/dev/null)
+assert_contains "zero duration: cost shown" '$1.23' "$OUT"
+assert_not_contains "zero duration: no timer" "⏱" "$OUT"
+
+OUT=$(run_statusline '{"model":"claude-sonnet-4-6","context_window":{"used_percentage":20},"cost":{"total_cost_usd":0.00,"total_duration_ms":null}}' \
+    USAGE_FILE=/dev/null)
+assert_not_contains "zero cost + null duration: no dollar" '$' "$OUT"
+assert_not_contains "zero cost + null duration: no timer" "⏱" "$OUT"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
