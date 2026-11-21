@@ -124,11 +124,29 @@ CTX_COLOR="$BAR_COLOR" CTX_BAR="$BAR_STR"
 
 # ── Session cost + duration ───────────────────────────────────────────────────
 COST_STR="" DURATION_STR=""
-if [ -n "$J_COST" ] && [ "$J_COST" != "0" ] && [ "$J_COST" != "null" ]; then
-    COST_STR=$(printf '$%.2f' "$J_COST" 2>/dev/null)
+INT_RE='^[0-9]+$'
+NUM_RE='^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$'
+ZERO_NUM_RE='^[+-]?(0+([.]0*)?|[.]0+)([eE][+-]?[0-9]+)?$'
+if [[ "$J_COST" =~ $NUM_RE ]] && ! [[ "$J_COST" =~ $ZERO_NUM_RE ]]; then
+    COST_FMT=$(printf -- '$%.2f' "$J_COST" 2>/dev/null) && COST_STR="$COST_FMT"
 fi
-if [ -n "$J_DURATION" ] && [ "$J_DURATION" != "0" ] && [ "$J_DURATION" != "null" ]; then
-    DURATION_STR=$(format_remaining $(( J_DURATION / 1000 )))
+if [[ "$J_DURATION" =~ $INT_RE ]]; then
+    DURATION_MS=$(( 10#$J_DURATION ))
+    if [ "$DURATION_MS" -gt 0 ]; then
+        DURATION_SECS=$(( DURATION_MS / 1000 ))
+        [ "$DURATION_SECS" -eq 0 ] && DURATION_SECS=1
+        DURATION_STR=$(format_remaining "$DURATION_SECS")
+    fi
+elif [[ "$J_DURATION" =~ $NUM_RE ]] && ! [[ "$J_DURATION" =~ $ZERO_NUM_RE ]]; then
+    DURATION_SECS=$(awk -v ms="$J_DURATION" 'BEGIN {
+        v = ms + 0
+        if (v > 0) {
+            s = int(v / 1000)
+            if (s == 0) s = 1
+            printf "%.0f\n", s
+        }
+    }')
+    [ -n "$DURATION_SECS" ] && DURATION_STR=$(format_remaining "$DURATION_SECS")
 fi
 
 # ── Git branch ────────────────────────────────────────────────────────────────
@@ -314,6 +332,8 @@ if [ -n "$COST_STR" ] && [ -n "$DURATION_STR" ]; then
     PARTS+=("$COST_STR ⏱ $DURATION_STR")
 elif [ -n "$COST_STR" ]; then
     PARTS+=("$COST_STR")
+elif [ -n "$DURATION_STR" ]; then
+    PARTS+=("⏱ $DURATION_STR")
 fi
 
 RESULT=""
